@@ -1,0 +1,14 @@
+{
+  "production": {
+    "version": "1",
+    "stage": "Production",
+    "run_id": "a26135b073794063bfaf0cbe329e367e",
+    "metrics": {
+      "accuracy": 0.72,
+      "precision": 0.4388185654008439,
+      "recall": 0.7482014388489209,
+      "f1": 0.5531914893617021,
+      "roc_auc": 0.7742630190858157
+    }
+  }
+}

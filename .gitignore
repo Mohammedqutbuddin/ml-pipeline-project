@@ -1,0 +1,35 @@
+# Local dev environments
+venv/
+venv2/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local-only MLflow tracking state (NOT needed for deployment — the export
+# script pulls what's needed out of this into model_artifacts/, which IS
+# committed)
+mlruns/
+mlflow.db
+mlflow_*.db
+mlflow.log
+serving.log
+uvicorn.log
+logs/*.db
+
+# Data NOT needed for deployment (regenerate locally with generate_data.py
+# or prepare_real_data.py — no need to commit these large/derived files)
+data/churn_raw.csv
+data/churn_test.csv
+data/raw_telco.csv
+
+monitoring_report.html
+.env
+
+# --- Intentionally NOT ignored, and required for deployment: ---
+# data/churn_train.csv      (used by /explain's background sample at runtime)
+# data/baseline_stats.json  (used by drift detection at runtime)
+# model_artifacts/          (the baked-in trained model — see export_model.py)
+# These MUST be committed, because Render/Hugging Face Spaces build your
+# Docker image from your git repo, not your local disk. If you forget to
+# commit them, the deploy build will fail on a missing COPY source.

@@ -1,0 +1,44 @@
+version: "3.8"
+
+# This compose file is for LOCAL testing of the full live-registry workflow
+# (shadow deployment, promote_staging.py, hot /reload-model) inside Docker —
+# it overrides the image's deployment defaults (MODEL_SOURCE=local,
+# ENVIRONMENT=production) back to the live-MLflow dev mode.
+#
+# NOTE: the Dockerfile always COPYs model_artifacts/ at build time regardless
+# of which mode you run in — so even for this dev-mode compose setup, run
+# `python src/training/export_model.py` at least once first so that
+# directory exists (a placeholder .gitkeep is committed so `docker build`
+# doesn't fail on a missing path before your first real export).
+#
+# For an actual deployment build (Render / Hugging Face Spaces), you don't
+# use this file at all — see GITHUB_AND_DEPLOYMENT.md.
+
+services:
+  mlflow:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: >
+      bash -c "pip install --no-cache-dir 'setuptools<82' mlflow==2.14.1 &&
+               mlflow server --host 0.0.0.0 --port 5000
+               --backend-store-uri sqlite:///mlflow.db
+               --default-artifact-root /app/mlruns"
+    ports:
+      - "5000:5000"
+
+  serving:
+    build: .
+    depends_on:
+      - mlflow
+    environment:
+      - MODEL_SOURCE=mlflow
+      - ENVIRONMENT=development
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - API_KEY=dev-key-change-me
+    volumes:
+      - ./mlruns:/app/mlruns
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"

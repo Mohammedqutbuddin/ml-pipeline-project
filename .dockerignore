@@ -1,0 +1,17 @@
+venv/
+venv2/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.github/
+mlruns/
+mlflow.db
+mlflow_*.db
+*.log
+logs/*.db
+data/churn_raw.csv
+data/churn_test.csv
+data/raw_telco.csv
+.env

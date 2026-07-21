@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Churn Model — Operations Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F5F2;
+    --panel: #FFFFFF;
+    --line: #DBDFD9;
+    --line-soft: #E9EBE7;
+    --text: #1B2420;
+    --text-muted: #667169;
+    --accent: #2A5B4C;
+    --accent-soft: #E4EEE9;
+    --ok: #1E7A4C;
+    --ok-soft: #E3F1E8;
+    --watch: #A8710F;
+    --watch-soft: #FAF0DE;
+    --crit: #B4382E;
+    --crit-soft: #FBE7E4;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+  }
+
+  /* ---- header / instrument strip ---- */
+  .console-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 6px;
+  }
+  .console-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .console-title .dim {
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 8px;
+  }
+  .console-clock {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .status-strip {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 0 18px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+  .status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .status-dot.ok { background: var(--ok); }
+  .status-dot.watch { background: var(--watch); }
+  .status-dot.crit { background: var(--crit); }
+  .status-dot.ok::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px solid var(--ok);
+    opacity: 0.5;
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.6); opacity: 0.6; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+  .status-label {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .status-sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* signature element: a heartbeat-style signal strip of recent predictions */
+  .signal-strip {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 28px;
+    margin-left: auto;
+  }
+  .signal-strip .bar {
+    width: 4px;
+    border-radius: 1px;
+    background: var(--line);
+  }
+  .signal-strip .bar.churn { background: var(--crit); height: 22px; }
+  .signal-strip .bar.retain { background: var(--ok); height: 10px; }
+
+  /* ---- grid of panels ---- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 16px 18px;
+  }
+  .panel-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .panel-value {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .panel-unit {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-left: 4px;
+  }
+  .panel-foot {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ---- section: drift table ---- */
+  .section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    margin-top: 14px;
+    overflow: hidden;
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .section-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .badge.watch { background: var(--watch-soft); color: var(--watch); }
+  .badge.crit { background: var(--crit-soft); color: var(--crit); }
+
+  .drift-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 70px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13px;
+  }
+  .drift-row:last-child { border-bottom: none; }
+  .drift-name { font-family: var(--mono); color: var(--text-muted); }
+  .drift-bar-track {
+    height: 6px;
+    background: var(--line-soft);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .drift-bar-fill {
+    height: 100%;
+    background: var(--ok);
+    border-radius: 3px;
+  }
+  .drift-bar-fill.watch { background: var(--watch); }
+  .drift-bar-fill.crit { background: var(--crit); }
+  .drift-psi {
+    font-family: var(--mono);
+    text-align: right;
+    color: var(--text-muted);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  thead th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  tbody td {
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--text);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .pill.churn { background: var(--crit-soft); color: var(--crit); }
+  .pill.retain { background: var(--ok-soft); color: var(--ok); }
+
+  .empty-state {
+    padding: 32px 18px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .empty-state code {
+    font-family: var(--mono);
+    background: var(--line-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  footer {
+    margin-top: 28px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="console-header">
+    <div class="console-title">churn-classifier <span class="dim">/ operations console</span></div>
+    <div class="console-clock" id="clock">—</div>
+  </div>
+
+  <div class="status-strip">
+    <div class="status-dot" id="status-dot"></div>
+    <div>
+      <div class="status-label" id="status-label">Checking system status…</div>
+      <div class="status-sub" id="status-sub">—</div>
+    </div>
+    <div class="signal-strip" id="signal-strip"></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-label">Predictions logged</div>
+      <div class="panel-value" id="m-total">—</div>
+      <div class="panel-foot">last 2,000 requests window</div>
+    </div>
+    <div class="panel">
+      <div class="panel-label">Predicted churn rate</div>
+      <div class="panel-value" id="m-churnrate">—</div>
+      <div class="panel-foot" id="m-churnrate-foot">&nbsp;</div>
+    </div>
+    <div class="panel">
+      <div class="panel-label">Avg inference latency</div>
+      <div class="panel-value" id="m-latency">—<span class="panel-unit">ms</span></div>
+      <div class="panel-foot">per request, model call only</div>
+    </div>
+    <div class="panel">
+      <div class="panel-label">Production version</div>
+      <div class="panel-value" id="m-version">—</div>
+      <div class="panel-foot" id="m-shadow-foot">no staging challenger</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Feature drift — PSI vs. training baseline</div>
+      <div class="badge" id="drift-badge">—</div>
+    </div>
+    <div id="drift-body">
+      <div class="empty-state">Loading drift report…</div>
+    </div>
+  </div>
+
+  <div class="section" id="shadow-section" style="display:none;">
+    <div class="section-head">
+      <div class="section-title">Shadow challenger agreement</div>
+      <div class="badge" id="shadow-badge">—</div>
+    </div>
+    <div id="shadow-body"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Recent predictions</div>
+    </div>
+    <div id="table-body">
+      <div class="empty-state">Loading…</div>
+    </div>
+  </div>
+
+  <footer>polling every 10s · dashboard shell is public, /metrics/* requires an API key (prompted on load)</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function fmtPct(x) { return x === null || x === undefined ? '—' : (x * 100).toFixed(1) + '%'; }
+function fmtNum(x, d=0) { return x === null || x === undefined ? '—' : Number(x).toFixed(d); }
+
+// --- API key handling -----------------------------------------------------
+// /metrics/* endpoints require the same X-API-Key as /predict — they return
+// real customer feature data, so they're not left open. Ask once per
+// browser session and reuse it; if the server rejects it, clear it so the
+// next fetch re-prompts instead of looping on 401s silently.
+function getApiKey() {
+  let key = sessionStorage.getItem('dashboardApiKey');
+  if (!key) {
+    key = window.prompt('Enter the API key to view live metrics:') || '';
+    sessionStorage.setItem('dashboardApiKey', key);
+  }
+  return key;
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(url, { headers: { 'X-API-Key': getApiKey() } });
+  if (res.status === 401) {
+    sessionStorage.removeItem('dashboardApiKey');
+    throw new Error('Unauthorized — refresh the page to re-enter your API key');
+  }
+  if (!res.ok) throw new Error(url + ' -> ' + res.status);
+  return res.json();
+}
+
+function tickClock() {
+  const now = new Date();
+  $('clock').textContent = now.toISOString().replace('T', '  ').slice(0, 19) + ' UTC';
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+function renderSignalStrip(predictions) {
+  const strip = $('signal-strip');
+  strip.innerHTML = '';
+  const recent = predictions.slice(0, 40).reverse();
+  if (recent.length === 0) return;
+  recent.forEach(p => {
+    const bar = document.createElement('div');
+    bar.className = 'bar ' + (p.prediction === 1 ? 'churn' : 'retain');
+    strip.appendChild(bar);
+  });
+}
+
+function driftStatusClass(psi, threshold) {
+  if (psi >= threshold) return 'crit';
+  if (psi >= threshold * 0.5) return 'watch';
+  return 'ok';
+}
+
+async function loadSummary() {
+  try {
+    const s = await fetchJSON('/metrics/summary');
+    $('m-total').textContent = s.total_predictions ?? '—';
+    $('m-churnrate').textContent = fmtPct(s.churn_rate);
+    $('m-latency').innerHTML = fmtNum(s.avg_latency_ms, 2) + '<span class="panel-unit">ms</span>';
+    $('m-version').textContent = s.current_model_version ?? '—';
+
+    if (s.shadow_active) {
+      $('m-shadow-foot').textContent = 'shadow v' + s.current_model_version + ' vs challenger active';
+      $('shadow-section').style.display = '';
+    } else {
+      $('m-shadow-foot').textContent = 'no staging challenger';
+      $('shadow-section').style.display = 'none';
+    }
+
+    if (s.total_predictions > 0) {
+      $('status-dot').className = 'status-dot ok';
+      $('status-label').textContent = 'Serving normally';
+      $('status-sub').textContent = s.total_predictions + ' requests observed, model v' + s.current_model_version;
+    } else {
+      $('status-dot').className = 'status-dot watch';
+      $('status-label').textContent = 'No traffic yet';
+      $('status-sub').textContent = 'Send a request to /predict to begin monitoring';
+    }
+  } catch (e) {
+    $('status-dot').className = 'status-dot crit';
+    $('status-label').textContent = 'Cannot reach metrics API';
+    $('status-sub').textContent = String(e);
+  }
+}
+
+async function loadDrift() {
+  try {
+    const d = await fetchJSON('/metrics/drift');
+    const body = $('drift-body');
+    const badge = $('drift-badge');
+
+    if (d.status === 'insufficient_data') {
+      body.innerHTML = `<div class="empty-state">${d.message}</div>`;
+      badge.textContent = 'awaiting data';
+      badge.className = 'badge';
+      return;
+    }
+    if (d.status === 'no_baseline') {
+      body.innerHTML = `<div class="empty-state">No baseline yet — run <code>python src/training/train.py</code> first.</div>`;
+      badge.textContent = 'no baseline';
+      badge.className = 'badge';
+      return;
+    }
+
+    badge.textContent = d.drift_detected ? 'drift detected' : 'stable';
+    badge.className = 'badge ' + (d.drift_detected ? 'crit' : '');
+
+    const rows = Object.entries(d.psi_per_feature || {}).map(([name, psi]) => {
+      const cls = driftStatusClass(psi, d.threshold);
+      const pct = Math.min(100, (psi / (d.threshold * 2)) * 100);
+      return `<div class="drift-row">
+        <div class="drift-name">${name}</div>
+        <div class="drift-bar-track"><div class="drift-bar-fill ${cls}" style="width:${pct}%"></div></div>
+        <div class="drift-psi">${psi.toFixed(3)}</div>
+      </div>`;
+    }).join('');
+    body.innerHTML = rows || '<div class="empty-state">No numeric features to compare.</div>';
+  } catch (e) {
+    $('drift-body').innerHTML = `<div class="empty-state">Drift check unavailable: ${e}</div>`;
+  }
+}
+
+async function loadShadow() {
+  try {
+    const rows = await fetchJSON('/metrics/shadow?limit=200');
+    const section = $('shadow-section');
+    if (!rows.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+
+    const agree = rows.filter(r => r.agree === 1).length;
+    const rate = agree / rows.length;
+    $('shadow-badge').textContent = fmtPct(rate) + ' agreement';
+    $('shadow-badge').className = 'badge ' + (rate < 0.85 ? 'watch' : '');
+
+    const last = rows[0];
+    $('shadow-body').innerHTML = `<div class="empty-state" style="text-align:left; padding: 14px 18px;">
+      Comparing production v${last.production_version} against staging v${last.shadow_version}
+      over ${rows.length} shared requests — ${agree} agreements, ${rows.length - agree} disagreements.
+    </div>`;
+  } catch (e) { /* no shadow table yet — fine, section stays hidden */ }
+}
+
+async function loadTable() {
+  try {
+    const rows = await fetchJSON('/metrics/predictions?limit=15');
+    renderSignalStrip(rows);
+    const container = $('table-body');
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty-state">No predictions logged yet. Send a request to <code>POST /predict</code> to see it here.</div>`;
+      return;
+    }
+    const head = `<thead><tr>
+      <th>Time (UTC)</th><th>Prediction</th><th>Probability</th><th>Tenure</th><th>Contract</th><th>Model</th>
+    </tr></thead>`;
+    const body = rows.map(r => `<tr>
+      <td>${(r.timestamp || '').replace('T', ' ').slice(0, 19)}</td>
+      <td><span class="pill ${r.prediction === 1 ? 'churn' : 'retain'}">${r.prediction === 1 ? 'churn' : 'retain'}</span></td>
+      <td>${(r.probability ?? 0).toFixed(3)}</td>
+      <td>${r.tenure_months ?? '—'}</td>
+      <td>${r.contract_type ?? '—'}</td>
+      <td>v${r.model_version ?? '—'}</td>
+    </tr>`).join('');
+    container.innerHTML = `<table>${head}<tbody>${body}</tbody></table>`;
+  } catch (e) {
+    $('table-body').innerHTML = `<div class="empty-state">Could not load predictions: ${e}</div>`;
+  }
+}
+
+async function refreshAll() {
+  await Promise.all([loadSummary(), loadDrift(), loadShadow(), loadTable()]);
+}
+
+refreshAll();
+setInterval(refreshAll, 10000);
+</script>
+</body>
+</html>

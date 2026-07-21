@@ -1,0 +1,68 @@
+name: CI - Validate & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install "setuptools<82"
+          pip install -r requirements.txt
+
+      - name: Generate synthetic data
+        run: python src/data/generate_data.py
+
+      - name: Run data validation gate
+        run: python src/data/validate_data.py
+
+      - name: Run data/training unit tests
+        run: pytest tests/test_data_validation.py tests/test_training.py -v
+
+      - name: Train and register a model (needed for serving tests)
+        env:
+          MLFLOW_TRACKING_URI: sqlite:///mlflow_ci.db
+        run: python src/training/train.py
+
+      - name: Run serving + API tests (live MLflow mode)
+        env:
+          MLFLOW_TRACKING_URI: sqlite:///mlflow_ci.db
+          API_KEY: dev-key-change-me
+          ENVIRONMENT: development
+          MODEL_SOURCE: mlflow
+          RUN_SERVING_TESTS: "1"
+        run: pytest tests/test_serving.py -v
+
+      - name: Export model for deployment
+        env:
+          MLFLOW_TRACKING_URI: sqlite:///mlflow_ci.db
+        run: python src/training/export_model.py
+
+      - name: Smoke-test the deploy path (MODEL_SOURCE=local, no MLflow server)
+        env:
+          API_KEY: a-real-ci-key
+          ENVIRONMENT: production
+          MODEL_SOURCE: local
+        run: |
+          python -c "
+          from fastapi.testclient import TestClient
+          from src.serving.app import app
+          with TestClient(app) as client:
+              assert client.get('/health').json()['model_source'] == 'local'
+              payload = {'tenure_months': 5, 'monthly_charges': 85.5, 'total_charges': 427.5, 'contract_type': 'month-to-month', 'internet_service': 'Fiber optic', 'has_tech_support': False, 'senior_citizen': False}
+              r = client.post('/predict', json=payload, headers={'X-API-Key': 'a-real-ci-key'})
+              assert r.status_code == 200, r.text
+              print('Deploy-mode smoke test passed:', r.json())
+          "

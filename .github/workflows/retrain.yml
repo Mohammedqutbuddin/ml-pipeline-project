@@ -1,0 +1,51 @@
+name: Scheduled Drift Check & Conditional Retrain
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # daily at 06:00 UTC — adjust to your traffic volume
+  workflow_dispatch:        # allows manual trigger from the Actions tab
+
+jobs:
+  check-drift-and-retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Start local MLflow server
+        run: |
+          mlflow server --host 0.0.0.0 --port 5000 \
+            --backend-store-uri sqlite:///mlflow.db \
+            --default-artifact-root ./mlruns &
+          sleep 5
+
+      # In a real deployment, `logs/predictions.db` would be pulled from a
+      # persistent volume / cloud storage bucket rather than checked out fresh.
+      - name: Run drift check
+        id: drift
+        run: |
+          python src/monitoring/drift_check.py
+        continue-on-error: true   # non-zero exit means drift was detected
+
+      - name: Retrain if drift detected
+        if: steps.drift.outcome == 'failure'
+        run: |
+          echo "Drift detected — retraining."
+          python src/data/generate_data.py   # in production: pull fresh real data instead
+          python src/data/validate_data.py
+          python src/training/train.py
+
+      - name: Upload monitoring report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-report
+          path: monitoring_report.html
+          if-no-files-found: ignore
