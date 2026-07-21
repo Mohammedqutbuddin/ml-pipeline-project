@@ -1,19 +1,3 @@
-# Deploy-ready image: the trained model is baked in at build time
-# (model_artifacts/, produced by `python src/training/export_model.py`), so
-# this container has NO runtime dependency on a live MLflow server. That's
-# what makes it deployable to a free-tier platform that only gives you one
-# service (Render, Hugging Face Spaces, etc).
-#
-# Build (run the pipeline locally first — see SETUP_GUIDE.md):
-#   docker build -t churn-api .
-#
-# Run:
-#   docker run -p 8000:8000 -e API_KEY=<a-real-key> -e ENVIRONMENT=production churn-api
-#
-# For local development against a LIVE MLflow registry instead (shadow
-# deployment workflow, promote_staging.py, etc.), use docker-compose.yml,
-# which overrides MODEL_SOURCE back to "mlflow" for that use case.
-
 FROM python:3.11-slim
 
 WORKDIR /app
